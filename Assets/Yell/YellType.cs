@@ -2,7 +2,7 @@ namespace Yell
 {
 	public enum YellType
 	{
-		OnCreationComplete,
+		CreationComplete,
 		OnSwipe,
 		OnTouch,
 		OnRotationEnd,
@@ -10,6 +10,9 @@ namespace Yell
 		UnblockTouch,
 		OnPop,
 		OnRotate,
-		FallCompleted
+		FallCompleted,
+		SpawnBomb,
+		GameEnd,
+		AllowSwipe
 	}
 }
