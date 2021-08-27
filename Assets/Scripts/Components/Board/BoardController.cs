@@ -1,9 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using DG.Tweening;
 using Scripts.Base;
+using Scripts.ScriptableObjects;
 using Scripts.Utils;
 using UnityEngine;
 using Yell;
@@ -15,39 +14,46 @@ namespace Scripts.Components.Board
 		public int Width => _model.Width;
 		public int Height => _model.Height;
 
-		public float CellWidth => _model.CellWidth;
-		public float CellHeight => _model.CellHeight;
-		public Vector2 StartPos => _model.StartPos;
-
 		public GridCell[,] Grid => _model.Grid;
 
-		private BoardView _view;
-		private BoardModel _model;
+		public bool SpawnBomb { get; set; }
+
+		private readonly BoardView _view;
+		private readonly BoardModel _model;
 
 		public BoardController(BoardView view)
 		{
 			YellManager.Instance.Listen(YellType.FallCompleted, new YellAction(this, OnFallCompleted));
+			YellManager.Instance.Listen(YellType.SpawnBomb, new YellAction(this, OnSpawnBomb));
+
+			BoardSettings boardSettings = Resources.Load<BoardSettings>("Settings/BoardSettings");
+
 			_model = ScriptableObject.CreateInstance<BoardModel>();
 			_view = view;
+
+			_model.Width = boardSettings.Width;
+			_model.Height = boardSettings.Height;
 
 			CalcStartPos();
 			CreateGrid();
 		}
 
 
+		//Calculate first item of board for placement
 		private void CalcStartPos()
 		{
 			float offset = 0;
-			if (_model.Height / 2 % 2 != 0)
-				offset = _model.CellWidth / 2f;
+			if (_model.Height % 2 != 0)
+				offset = _model.CellHeight / 2f;
 
 
-			float x = -_model.CellWidth * (_model.Width / 2f) - offset;
-			float y = _model.Height / 4f;
+			float x = (_model.Width * _model.CellWidth / -2f) + _model.CellWidth / 2f;
+			float y = (_model.Height * _model.CellHeight / 2f) - offset;
 
 			_model.StartPos = new Vector2(x, y);
 		}
 
+		//Create the hexagonal grid
 		private void CreateGrid()
 		{
 			_model.Grid = new GridCell[_model.Width, _model.Height];
@@ -65,6 +71,7 @@ namespace Scripts.Components.Board
 			}
 		}
 
+		//Calculate grid cell position
 		private Vector2 CalcWorldPos(int x, int y)
 		{
 			float offset = 0;
@@ -77,6 +84,11 @@ namespace Scripts.Components.Board
 			return new Vector2(xCoord, yCoord);
 		}
 
+		/// <summary>
+		/// Searches the neighbors fot the given cell.
+		/// </summary>
+		/// <param name="cell">Search the neighbors for</param>
+		/// <returns></returns>
 		internal List<GridCell> GetNeighbors(GridCell cell)
 		{
 			var list = new List<GridCell>();
@@ -105,7 +117,11 @@ namespace Scripts.Components.Board
 			return list;
 		}
 
-		internal List<GridCell> PickNeighbor(GridCell cell, GridCell selectedCell, ref int selectionState)
+		/// <summary>
+		/// Gets 3 item by <paramref name="selectionState"/> from neighbors. One of them must be <paramref name="selectedCell"/>
+		/// </summary>
+		/// <returns>Returns selected 3 cell</returns>
+		internal List<GridCell> PickNeighbor(GridCell selectedCell, ref int selectionState)
 		{
 			List<GridCell> cells = new List<GridCell>();
 			Neighbors neighbors = FindNeighbors(selectedCell);
@@ -122,13 +138,14 @@ namespace Scripts.Components.Board
 				n2 = neighbors[(selectionState + 1) % 6];
 			}
 
-			cells.Add(cell);
+			cells.Add(selectedCell);
 			cells.Add(n1);
 			cells.Add(n2);
 
 			return cells;
 		}
 
+		//Try get all neighbors
 		private Neighbors FindNeighbors(GridCell cell)
 		{
 			var pos = cell.GridPosition;
@@ -171,8 +188,15 @@ namespace Scripts.Components.Board
 			return cell;
 		}
 
+		/// <summary>
+		/// Checks if <paramref name="selectedCells"/> items have same color.
+		/// </summary>
+		/// <param name="selectedCells">Selected items</param>
+		/// <param name="isClockwise">For control direction</param>
+		/// <param name="onComplete">action to trigger after the checking</param>
+		/// <returns></returns>
 		internal IEnumerator CheckMatch(List<GridCell> selectedCells, bool isClockwise,
-			Action<HashSet<GridCell>, int> rotate)
+			Action<HashSet<GridCell>> onComplete)
 		{
 			var n0 = selectedCells[0];
 			var n1 = selectedCells[1];
@@ -180,6 +204,7 @@ namespace Scripts.Components.Board
 			int turnCount = 0;
 			bool stop = false;
 			var cellsToExplode = new HashSet<GridCell>();
+
 			while (!stop)
 			{
 				cellsToExplode.Clear();
@@ -200,39 +225,9 @@ namespace Scripts.Components.Board
 
 					yield return new WaitForSeconds(.33f);
 
-					var n = FindNeighbors(n0);
-					
-					var dict = new Dictionary<Color, List<GridCell>>();
-					int selectionState = 0;
-					foreach (var cell in n)
-					{
-						if (cell == null) continue;
-						var neighbors = PickNeighbor(n0, n0, ref selectionState);
-						foreach (var nn in neighbors)
-						{
-							if (dict.ContainsKey(nn.Child.Color)) dict[nn.Child.Color].Add(nn);
-							else dict[nn.Child.Color] = new List<GridCell> {nn};
-						}
-						
-					}
-
-					if (dict.ContainsKey(n0.Child.Color)) dict[n0.Child.Color].Add(n0);
-
-					foreach (var pair in dict)
-					{
-						if (pair.Value.Count >= 3) cellsToExplode.AddRange(pair.Value);
-					}
-
-
-					// List<GridCell> match = FindMatch(n0);
-					// if (match.Contains(n0))
-					// 	cellsToExplode.AddRange(match);
-					// match = FindMatch(n1);
-					// if (match.Contains(n1))
-					// 	cellsToExplode.AddRange(match);
-					// match = FindMatch(n2);
-					// if (match.Contains(n2))
-					// 	cellsToExplode.AddRange(match);
+					cellsToExplode.AddRange(FindMatch(n0));
+					cellsToExplode.AddRange(FindMatch(n1));
+					cellsToExplode.AddRange(FindMatch(n2));
 				}
 				else
 				{
@@ -246,15 +241,9 @@ namespace Scripts.Components.Board
 
 					yield return new WaitForSeconds(.33f);
 
-					// List<GridCell> match = FindMatch(n0);
-					// if (match.Contains(n0))
-					// 	cellsToExplode.AddRange(match);
-					// match = FindMatch(n1);
-					// if (match.Contains(n1))
-					// 	cellsToExplode.AddRange(match);
-					// match = FindMatch(n2);
-					// if (match.Contains(n2))
-					// 	cellsToExplode.AddRange(match);
+					cellsToExplode.AddRange(FindMatch(n0));
+					cellsToExplode.AddRange(FindMatch(n1));
+					cellsToExplode.AddRange(FindMatch(n2));
 				}
 
 
@@ -262,58 +251,58 @@ namespace Scripts.Components.Board
 				if (cellsToExplode.Count >= 3 || turnCount >= 3) stop = true;
 			}
 
-			rotate(cellsToExplode, turnCount);
+			onComplete(cellsToExplode);
 		}
 
+		/// <summary>
+		/// Counts items by colors
+		/// </summary>
+		/// <param name="cell">Centre cell</param>
+		/// <returns></returns>
 		private List<GridCell> FindMatch(GridCell cell)
 		{
-			Neighbors neighbors = FindNeighbors(cell);
-			Dictionary<Color, List<GridCell>> gridCells = CountItems(neighbors);
-			List<GridCell> matches = new List<GridCell>();
-			if (gridCells.ContainsKey(cell.Child.Color))
-				gridCells[cell.Child.Color].Add(cell);
-			foreach (var pair in gridCells)
+			var cellsToExplode = new List<GridCell>();
+			var neighbors = FindNeighbors(cell);
+			for (int i = 0; i < 6; i++)
 			{
-				if (pair.Value.Count >= 3)
+				if (neighbors[i] == null || neighbors[(i + 1) % 6] == null) continue;
+				if (neighbors[i].Child.Color == neighbors[(i + 1) % 6].Child.Color &&
+					neighbors[i].Child.Color == cell.Child.Color)
 				{
-					var xList = pair.Value.Select(c => c.GridPosition.x).ToList();
-					var yList = pair.Value.Select(c => c.GridPosition.y).ToList();
-					//if (xList.Count <= 3 && yList.Count <= 3) 
-					matches.AddRange(pair.Value);
+					cellsToExplode.Add(neighbors[i]);
+					cellsToExplode.Add(neighbors[(i + 1) % 6]);
+					cellsToExplode.Add(cell);
 				}
 			}
 
-			return matches;
+			return cellsToExplode;
 		}
 
-		private Dictionary<Color, List<GridCell>> CountItems(Neighbors neighbors)
-		{
-			Dictionary<Color, List<GridCell>> counts = new Dictionary<Color, List<GridCell>>();
-			foreach (GridCell cell in neighbors)
-			{
-				if (cell == null || !cell.Child.gameObject.activeSelf) continue;
-				if (counts.ContainsKey(cell.Child.Color)) counts[cell.Child.Color].Add(cell);
-				else counts[cell.Child.Color] = new List<GridCell> {cell};
-			}
 
-			return counts;
-		}
-
+		//On fall anims completed
 		private void OnFallCompleted(YellData data)
 		{
-			// var cellsToExplode = new List<GridCell>();
-			// for (int y = 0; y < _model.Height; y++)
-			// {
-			// 	for (int x = 0; x < _model.Width; x++)
-			// 	{
-			// 		GridCell cell = _model.Grid[x, y];
-			// 		List<GridCell> match = FindMatch(cell);
-			// 		if (match.Contains(cell))
-			// 			cellsToExplode.AddRange(match);
-			// 	}
-			// }
-			//
-			// _view.Pop(cellsToExplode);
+			var cellsToExplode = new HashSet<GridCell>();
+			for (int y = 0; y < _model.Height; y++)
+			{
+				for (int x = 0; x < _model.Width; x++)
+				{
+					GridCell cell = _model.Grid[x, y];
+					cellsToExplode.AddRange(FindMatch(cell));
+				}
+			}
+
+			if (cellsToExplode.Count > 0)
+				_view.Pop(cellsToExplode);
+			else
+				YellManager.Instance.Yell(YellType.AllowSwipe);
+		}
+
+
+		//On bomb spawn tiggered
+		private void OnSpawnBomb(YellData arg0)
+		{
+			SpawnBomb = true;
 		}
 	}
 }

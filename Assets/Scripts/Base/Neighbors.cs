@@ -1,9 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Scripts.Components;
 
 namespace Scripts.Base
 {
+	/// <summary>
+	/// Custom Neighbor Enumerable class for GridCell
+	/// </summary>
 	public class Neighbors : IEnumerable<GridCell>
 	{
 		private readonly Dictionary<int, GridCell> _dict = new Dictionary<int, GridCell>();

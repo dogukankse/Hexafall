@@ -1,7 +1,7 @@
 using Scripts.Base;
 using UnityEngine;
 
-namespace Scripts
+namespace Scripts.Components
 {
 	public class GridCell : MonoBehaviour
 	{

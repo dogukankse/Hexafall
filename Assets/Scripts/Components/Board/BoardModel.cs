@@ -8,8 +8,8 @@ namespace Scripts.Components.Board
 		public float CellHeight = 0.45f;
 		
 		public GridCell[,] Grid { get; set; }
-		public int Width { get; set; } = 8;
-		public int Height { get; set; } = 9;
+		public int Width { get; set; }
+		public int Height { get; set; }
 
 		public Vector2 StartPos { get; set; }
 	}

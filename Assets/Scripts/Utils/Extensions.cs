@@ -19,18 +19,20 @@ namespace Scripts.Utils
 			return localList[index];
 		}
 
-		public static void AddRange<T>(this HashSet<T> set, IEnumerable<T> enumerable)
+		/// <summary>
+		/// Add range for HashSet
+		/// </summary>
+		/// <param name="set">The HashSet itself</param>
+		/// <param name="items">items to be added</param>
+		/// <typeparam name="T">Type of the HashSet's items</typeparam>
+		public static void AddRange<T>(this HashSet<T> set, IEnumerable<T> items)
 		{
-			if (enumerable == null) return;
-			foreach (var item in enumerable)
+			if (items == null) return;
+			foreach (var item in items)
 			{
 				set.Add(item);
 			}
 		}
-
-		public static Color SetAlpha(this Color c, float a)
-		{
-			return new Color(c.r, c.g, c.b, a);
-		}
+		
 	}
 }
