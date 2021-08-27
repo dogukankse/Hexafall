@@ -7,6 +7,9 @@ namespace Yell
 		OnTouch,
 		OnRotationEnd,
 		BlockTouch,
-		UnblockTouch
+		UnblockTouch,
+		OnPop,
+		OnRotate,
+		FallCompleted
 	}
 }

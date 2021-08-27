@@ -11,7 +11,7 @@ namespace Scripts
 			set
 			{
 				_child = value;
-				_child.transform.SetParent(_child.transform);
+				_child.transform.SetParent(transform);
 
 			}
 		}
